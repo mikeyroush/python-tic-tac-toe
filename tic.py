@@ -4,7 +4,7 @@
 
 from scene import *
 import sound
-from random import choice
+from random import choice,uniform
 import math
 
 class Spot(LabelNode):
@@ -32,7 +32,7 @@ class Board (ShapeNode):
 		self.no_boarder = True
 		self.width = 7
 		self.font_family = 'Helvetica'
-		self.divs = 3
+		self.divs = 5
 		self.start_pattern = '*'
 		size = self.size.w	
 		self.font_size = size/2/self.divs
@@ -90,9 +90,14 @@ class Tic(Scene):
 		self.board = Board(self.square,fill_color='clear',stroke_color=self.color,parent=self,position=center)
 		#initialize game variables
 		self.AI_level = 2
+		self.magic_number = math.factorial(8)
+		self.depth = 0
+		self.calc_depth()
 		self.players = ['X','O']
 		self.player = choice(self.players)
 		self.current_player = self.player
+		ai_index = (self.players.index(self.current_player) + 1) % len(self.players)
+		self.ai = self.players[ai_index]
 		self.game_state = LabelNode("",font=(self.board.font_family,2.25*self.board.font_size),position=center,parent=self)
 		
 	def touch_began(self, touch):
@@ -109,7 +114,15 @@ class Tic(Scene):
 					self.board.update()
 					result = self.update_state()
 					if not result:
-						self.take_turn()		
+						self.take_turn()	
+						
+	def calc_depth(self):
+		spots = self.board.divs**2 - 1
+		temp = spots
+		while spots < self.magic_number:
+			temp -= 1
+			spots *= temp
+			self.depth += 1
 								
 	def pick(self,index):
 		self.board.moves[index[0]][index[1]] = self.current_player
@@ -203,10 +216,12 @@ class Tic(Scene):
 		self.board.update()
 		self.update_state()
 			
-	def minimax(self,maximizingPlayer=False):
+	def minimax(self,depth=0,alpha=-math.inf,beta=math.inf,maximizingPlayer=False):
 		#base case
+		#return the score of the board if there is a winner
+		#or if we go too deep
 		result = self.check_winner()
-		if result:
+		if result or depth == self.depth:
 			return self.calc_score(result)
 		
 		#maximizing players turn
@@ -216,9 +231,12 @@ class Tic(Scene):
 				for j, move in enumerate(div):
 					if move == self.board.start_pattern:
 						self.pick((i,j))
-						eval = self.minimax(False)
+						eval = self.minimax(depth+1,alpha,beta,False)
 						self.unpick((i,j))
 						maxEval = max(maxEval,eval)
+						alpha = max(alpha,eval)
+						if beta <= alpha:
+							return maxEval
 			return maxEval
 						
 		#minimizing players turn
@@ -228,17 +246,20 @@ class Tic(Scene):
 				for j, move in enumerate(div):
 					if move == self.board.start_pattern:
 						self.pick((i,j))
-						eval = self.minimax(True)
+						eval = self.minimax(depth+1,alpha,beta,True)
 						self.unpick((i,j))
 						minEval = min(minEval,eval)
+						beta = min(beta,eval)
+						if beta <= alpha:
+							return minEval
 			return minEval
 		
 	def calc_score(self,result):
 		if result == self.player:
 			return -1
-		elif result == 'TIE':
-			return 0
-		else:
+		elif result == self.ai:
 			return 1
+		else:
+			return uniform(-0.5,0.5)
 					
 run(Tic())
